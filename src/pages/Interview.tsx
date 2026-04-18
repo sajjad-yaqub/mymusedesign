@@ -169,7 +169,7 @@ export default function InterviewPage() {
       summary: draft.summary,
       values: draft.values,
       avoid: draft.avoid,
-      interview_transcript: messages,
+      interview_transcript: messages as any,
     };
     const { error } = await supabase
       .from("taste_profiles")
