@@ -173,7 +173,7 @@ export default function InterviewPage() {
     };
     const { error } = await supabase
       .from("taste_profiles")
-      .upsert(payload, { onConflict: "user_id" });
+      .upsert([payload], { onConflict: "user_id" });
     if (error) {
       toast.error(error.message);
       return;
