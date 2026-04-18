@@ -14,7 +14,126 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      generations: {
+        Row: {
+          brief: string
+          created_at: string
+          id: string
+          output_format: string
+          rationale: string | null
+          reference_ids: string[]
+          result: string
+          user_id: string
+        }
+        Insert: {
+          brief: string
+          created_at?: string
+          id?: string
+          output_format: string
+          rationale?: string | null
+          reference_ids?: string[]
+          result: string
+          user_id: string
+        }
+        Update: {
+          brief?: string
+          created_at?: string
+          id?: string
+          output_format?: string
+          rationale?: string | null
+          reference_ids?: string[]
+          result?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      references: {
+        Row: {
+          commentary: string | null
+          created_at: string
+          id: string
+          label: string
+          storage_path: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          commentary?: string | null
+          created_at?: string
+          id?: string
+          label: string
+          storage_path: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          commentary?: string | null
+          created_at?: string
+          id?: string
+          label?: string
+          storage_path?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      taste_profiles: {
+        Row: {
+          avoid: string[]
+          created_at: string
+          id: string
+          interview_transcript: Json
+          summary: string
+          updated_at: string
+          user_id: string
+          values: string[]
+        }
+        Insert: {
+          avoid?: string[]
+          created_at?: string
+          id?: string
+          interview_transcript?: Json
+          summary?: string
+          updated_at?: string
+          user_id: string
+          values?: string[]
+        }
+        Update: {
+          avoid?: string[]
+          created_at?: string
+          id?: string
+          interview_transcript?: Json
+          summary?: string
+          updated_at?: string
+          user_id?: string
+          values?: string[]
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
