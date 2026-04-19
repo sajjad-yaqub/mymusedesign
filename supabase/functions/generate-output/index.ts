@@ -4,22 +4,55 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const DIMENSION_TO_ASPECT: Record<string, string> = {
+  "1024x1024": "square (1:1)",
+  "1536x1024": "landscape (3:2)",
+  "1024x1536": "portrait (2:3)",
+  "1792x1024": "wide landscape (16:9)",
+  "1024x1792": "tall portrait (9:16)",
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { brief, format, profile, selectedRefs } = await req.json();
+    const {
+      brief,
+      format,
+      profile,
+      selectedRefs,
+      link,
+      inspirationImages, // array of data URLs (ad-hoc, not saved)
+      imageDimensions,   // e.g. "1024x1024"
+    } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
     const refsBlock = (selectedRefs || []).map((r: any, i: number) =>
       `Ref ${i + 1} [${r.label}]${r.commentary ? `: "${r.commentary}"` : ""}`
-    ).join("\n") || "(none selected — rely on the taste profile)";
+    ).join("\n") || "(none selected from saved references)";
+
+    const linkBlock = link ? `\nRELATED LINK (use as context — website / social): ${link}` : "";
+    const inspirationCount = Array.isArray(inspirationImages) ? inspirationImages.length : 0;
+    const inspirationBlock = inspirationCount > 0
+      ? `\nThe designer also attached ${inspirationCount} ad-hoc inspiration image(s) for THIS piece only. Treat them as direct visual cues.`
+      : "";
 
     // ===== IMAGE FORMAT: two-step (rationale + prompt → image) =====
     if (format === "image") {
-      // Step 1: ask the model for an image prompt + rationale via tool calling
+      const aspect = DIMENSION_TO_ASPECT[imageDimensions] ?? "square (1:1)";
+
+      // Step 1: build the image prompt using vision input from inspirations
+      const planUserContent: any[] = [
+        { type: "text", text: `BRIEF: ${brief}${linkBlock}\n\nTarget aspect: ${aspect}.` },
+      ];
+      if (Array.isArray(inspirationImages)) {
+        for (const url of inspirationImages) {
+          planUserContent.push({ type: "image_url", image_url: { url } });
+        }
+      }
+
       const planRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
@@ -33,12 +66,12 @@ Summary: ${profile.summary}
 Values: ${(profile.values || []).join(", ")}
 Avoids: ${(profile.avoid || []).join(", ")}
 
-References they chose:
-${refsBlock}
+Saved references they chose:
+${refsBlock}${inspirationBlock}
 
-Write a vivid image-generation prompt (one paragraph, 80-150 words) that reflects their taste exactly. Be visually specific: composition, palette, type, mood, materials.`,
+Write a vivid image-generation prompt (one paragraph, 80-150 words) that reflects their taste exactly. Be visually specific: composition, palette, type, mood, materials. Mention the target aspect ratio.`,
             },
-            { role: "user", content: `BRIEF: ${brief}` },
+            { role: "user", content: planUserContent },
           ],
           tools: [{
             type: "function",
@@ -74,13 +107,22 @@ Write a vivid image-generation prompt (one paragraph, 80-150 words) that reflect
       if (!planCall) throw new Error("No image plan returned");
       const { image_prompt, rationale } = JSON.parse(planCall.function.arguments);
 
-      // Step 2: generate the image
+      // Step 2: generate the image (include inspiration images so the model can riff visually)
+      const imgUserContent: any[] = [
+        { type: "text", text: `${image_prompt}\n\nAspect ratio: ${aspect}.` },
+      ];
+      if (Array.isArray(inspirationImages)) {
+        for (const url of inspirationImages) {
+          imgUserContent.push({ type: "image_url", image_url: { url } });
+        }
+      }
+
       const imgRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "google/gemini-2.5-flash-image",
-          messages: [{ role: "user", content: image_prompt }],
+          messages: [{ role: "user", content: imgUserContent }],
           modalities: ["image", "text"],
         }),
       });
@@ -117,11 +159,21 @@ Summary: ${profile.summary}
 Values: ${(profile.values || []).join(", ")}
 Avoids: ${(profile.avoid || []).join(", ")}
 
-REFERENCES THEY CHOSE FOR THIS PIECE:
-${refsBlock}
+SAVED REFERENCES THEY CHOSE FOR THIS PIECE:
+${refsBlock}${linkBlock}${inspirationBlock}
 
 OUTPUT FORMAT INSTRUCTIONS:
 ${formatInstructions[format] || formatInstructions["brief"]}`;
+
+    // Build user content with inspiration images for vision
+    const userContent: any[] = [
+      { type: "text", text: `BRIEF: ${brief}\n\nGenerate the output now.` },
+    ];
+    if (Array.isArray(inspirationImages)) {
+      for (const url of inspirationImages) {
+        userContent.push({ type: "image_url", image_url: { url } });
+      }
+    }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -130,7 +182,7 @@ ${formatInstructions[format] || formatInstructions["brief"]}`;
         model: "google/gemini-2.5-pro",
         messages: [
           { role: "system", content: system },
-          { role: "user", content: `BRIEF: ${brief}\n\nGenerate the output now.` },
+          { role: "user", content: userContent },
         ],
         tools: [{
           type: "function",

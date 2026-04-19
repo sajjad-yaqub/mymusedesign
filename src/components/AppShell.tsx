@@ -1,18 +1,17 @@
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useTasteProfile } from "@/hooks/useTasteProfile";
 import { useEffect } from "react";
 
 const sections = [
-  { to: "/interview", label: "Interview" },
-  { to: "/profile", label: "Profile" },
   { to: "/generate", label: "Generate" },
+  { to: "/profile", label: "Profile" },
+  { to: "/interview", label: "Interview" },
+  { to: "/history", label: "History" },
 ];
 
 export default function AppShell() {
   const { user, loading } = useAuth();
-  const { profile, loading: profileLoading } = useTasteProfile();
   const navigate = useNavigate();
 
   useEffect(() => {
