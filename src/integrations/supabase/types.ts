@@ -19,30 +19,45 @@ export type Database = {
           brief: string
           created_at: string
           id: string
+          image_dimensions: string | null
+          inspirations: string[]
+          link: string | null
           output_format: string
+          rating: string | null
           rationale: string | null
           reference_ids: string[]
           result: string
+          saved_to_history: boolean
           user_id: string
         }
         Insert: {
           brief: string
           created_at?: string
           id?: string
+          image_dimensions?: string | null
+          inspirations?: string[]
+          link?: string | null
           output_format: string
+          rating?: string | null
           rationale?: string | null
           reference_ids?: string[]
           result: string
+          saved_to_history?: boolean
           user_id: string
         }
         Update: {
           brief?: string
           created_at?: string
           id?: string
+          image_dimensions?: string | null
+          inspirations?: string[]
+          link?: string | null
           output_format?: string
+          rating?: string | null
           rationale?: string | null
           reference_ids?: string[]
           result?: string
+          saved_to_history?: boolean
           user_id?: string
         }
         Relationships: []
