@@ -6,15 +6,18 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Loader2, Copy, RefreshCw } from "lucide-react";
+import { Loader2, Copy, RefreshCw, Download, Eye, Code2 } from "lucide-react";
 import { LabelChip } from "@/components/LabelChip";
 import { Navigate } from "react-router-dom";
 
 const FORMATS = [
   { id: "html", label: "HTML/CSS mockup" },
-  { id: "image_prompt", label: "Image generation prompt" },
+  { id: "image", label: "Image" },
+  { id: "image_prompt", label: "Image prompt" },
   { id: "brief", label: "Creative brief" },
 ];
+
+type Output = { result: string; rationale: string; image_prompt?: string };
 
 export default function GeneratePage() {
   const { user } = useAuth();
@@ -26,7 +29,9 @@ export default function GeneratePage() {
   const [format, setFormat] = useState("brief");
   const [selectedRefIds, setSelectedRefIds] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
-  const [output, setOutput] = useState<{ result: string; rationale: string } | null>(null);
+  const [output, setOutput] = useState<Output | null>(null);
+  const [outputFormat, setOutputFormat] = useState<string>("brief");
+  const [htmlView, setHtmlView] = useState<"preview" | "code">("preview");
 
   if (loading) return null;
   if (!profile) return <Navigate to="/interview" replace />;
@@ -55,7 +60,10 @@ export default function GeneratePage() {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      setOutput({ result: data.result, rationale: data.rationale });
+
+      setOutput({ result: data.result, rationale: data.rationale, image_prompt: data.image_prompt });
+      setOutputFormat(format);
+      setHtmlView("preview");
 
       await supabase.from("generations").insert({
         user_id: user!.id,
@@ -70,6 +78,19 @@ export default function GeneratePage() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const copy = () => {
+    navigator.clipboard.writeText(output!.result);
+    toast.success("Copied.");
+  };
+
+  const downloadImage = () => {
+    if (!output) return;
+    const a = document.createElement("a");
+    a.href = output.result;
+    a.download = `my-muse-${Date.now()}.png`;
+    a.click();
   };
 
   return (
@@ -144,25 +165,70 @@ export default function GeneratePage() {
       {output && (
         <div className="mt-16 pt-12 border-t border-border space-y-8 animate-fade-in">
           <div>
-            <div className="text-eyebrow mb-3">Result</div>
-            <pre className="whitespace-pre-wrap text-[14px] text-ink leading-relaxed font-sans bg-card border border-border rounded p-6 max-h-[600px] overflow-auto">
-              {output.result}
-            </pre>
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-eyebrow">Result</div>
+              {outputFormat === "html" && (
+                <div className="flex gap-1 border border-border rounded-full p-0.5">
+                  <button
+                    onClick={() => setHtmlView("preview")}
+                    className={`text-xs px-3 py-1 rounded-full flex items-center gap-1.5 transition ${
+                      htmlView === "preview" ? "bg-secondary/60 text-ink" : "text-muted-foreground hover:text-ink"
+                    }`}
+                  >
+                    <Eye className="w-3 h-3" /> Preview
+                  </button>
+                  <button
+                    onClick={() => setHtmlView("code")}
+                    className={`text-xs px-3 py-1 rounded-full flex items-center gap-1.5 transition ${
+                      htmlView === "code" ? "bg-secondary/60 text-ink" : "text-muted-foreground hover:text-ink"
+                    }`}
+                  >
+                    <Code2 className="w-3 h-3" /> Code
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {outputFormat === "image" ? (
+              <div className="bg-card border border-border rounded p-4">
+                <img
+                  src={output.result}
+                  alt={output.image_prompt ?? "Generated"}
+                  className="w-full h-auto rounded"
+                />
+              </div>
+            ) : outputFormat === "html" && htmlView === "preview" ? (
+              <iframe
+                title="Preview"
+                srcDoc={output.result}
+                sandbox="allow-same-origin"
+                className="w-full h-[600px] bg-white border border-border rounded"
+              />
+            ) : (
+              <pre className="whitespace-pre-wrap text-[14px] text-ink leading-relaxed font-sans bg-card border border-border rounded p-6 max-h-[600px] overflow-auto">
+                {output.result}
+              </pre>
+            )}
           </div>
+
           <div>
             <div className="text-eyebrow mb-3">Why I made these choices</div>
             <p className="font-serif text-xl text-ink leading-snug">{output.rationale}</p>
           </div>
-          <div className="flex gap-3">
+
+          <div className="flex gap-3 flex-wrap">
             <Button onClick={generate} variant="outline" disabled={busy}>
               <RefreshCw className="w-4 h-4 mr-2" /> Regenerate
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => { navigator.clipboard.writeText(output.result); toast.success("Copied."); }}
-            >
-              <Copy className="w-4 h-4 mr-2" /> Copy
-            </Button>
+            {outputFormat === "image" ? (
+              <Button variant="outline" onClick={downloadImage}>
+                <Download className="w-4 h-4 mr-2" /> Download
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={copy}>
+                <Copy className="w-4 h-4 mr-2" /> Copy
+              </Button>
+            )}
           </div>
         </div>
       )}
