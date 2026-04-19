@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Loader2, Copy, RefreshCw, Download, Eye, Code2 } from "lucide-react";
 import { LabelChip } from "@/components/LabelChip";
-import { Navigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 
 const FORMATS = [
   { id: "html", label: "HTML/CSS mockup" },
@@ -34,7 +34,24 @@ export default function GeneratePage() {
   const [htmlView, setHtmlView] = useState<"preview" | "code">("preview");
 
   if (loading) return null;
-  if (!profile) return <Navigate to="/interview" replace />;
+
+  if (!profile) {
+    return (
+      <div className="px-12 py-16 max-w-2xl">
+        <div className="text-eyebrow mb-4">Generate</div>
+        <h1 className="font-serif text-5xl text-ink mb-6 leading-tight">No taste profile yet.</h1>
+        <p className="text-ink-faint text-[15px] leading-relaxed mb-8">
+          Generation works best once I know how you see design. Run the interview to build your taste profile, then come back here.
+        </p>
+        <Link
+          to="/interview"
+          className="inline-flex items-center h-11 px-6 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition"
+        >
+          Start the interview
+        </Link>
+      </div>
+    );
+  }
 
   const toggleRef = (id: string) => {
     setSelectedRefIds((prev) => {

@@ -21,8 +21,6 @@ export default function AppShell() {
 
   if (loading || !user) return null;
 
-  const generateLocked = !profileLoading && !profile;
-
   return (
     <div className="min-h-screen flex bg-background text-foreground">
       {/* Sidebar */}
@@ -35,36 +33,21 @@ export default function AppShell() {
         </div>
 
         <nav className="px-4 flex-1">
-          {sections.map((s) => {
-            const isLocked = s.to === "/generate" && generateLocked;
-            if (isLocked) {
-              return (
-                <div
-                  key={s.to}
-                  className="flex items-center justify-between px-3 py-2 text-[13px] text-ink-faint cursor-not-allowed"
-                  title="Complete the interview to unlock"
-                >
-                  <span>{s.label}</span>
-                  <span className="text-[10px] uppercase tracking-wider">Locked</span>
-                </div>
-              );
-            }
-            return (
-              <NavLink
-                key={s.to}
-                to={s.to}
-                className={({ isActive }) =>
-                  `block px-3 py-2 text-[13px] border-l transition-colors ${
-                    isActive
-                      ? "border-ink text-ink"
-                      : "border-transparent text-muted-foreground hover:text-ink"
-                  }`
-                }
-              >
-                {s.label}
-              </NavLink>
-            );
-          })}
+          {sections.map((s) => (
+            <NavLink
+              key={s.to}
+              to={s.to}
+              className={({ isActive }) =>
+                `block px-3 py-2 text-[13px] border-l transition-colors ${
+                  isActive
+                    ? "border-ink text-ink"
+                    : "border-transparent text-muted-foreground hover:text-ink"
+                }`
+              }
+            >
+              {s.label}
+            </NavLink>
+          ))}
         </nav>
 
         <div className="p-4 border-t border-border">
