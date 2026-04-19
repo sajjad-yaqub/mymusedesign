@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTasteProfile } from "@/hooks/useTasteProfile";
 import { useReferences, useReferenceUrls } from "@/hooks/useReferences";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Loader2, Copy, RefreshCw, Download, Eye, Code2 } from "lucide-react";
-import { LabelChip } from "@/components/LabelChip";
+import { Loader2, Copy, RefreshCw, Download, Eye, Code2, Upload, X, BookmarkPlus, Save } from "lucide-react";
+import { LabelChip, type LabelKind } from "@/components/LabelChip";
 import { Link } from "react-router-dom";
 
 const FORMATS = [
@@ -17,21 +18,46 @@ const FORMATS = [
   { id: "brief", label: "Creative brief" },
 ];
 
-type Output = { result: string; rationale: string; image_prompt?: string };
+const DIMENSIONS = [
+  { id: "1024x1024", label: "Square 1:1" },
+  { id: "1536x1024", label: "Landscape 3:2" },
+  { id: "1024x1536", label: "Portrait 2:3" },
+  { id: "1792x1024", label: "Wide 16:9" },
+  { id: "1024x1792", label: "Tall 9:16" },
+];
+
+type Output = { id?: string; result: string; rationale: string; image_prompt?: string };
+
+const fileToDataUrl = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
 
 export default function GeneratePage() {
   const { user } = useAuth();
   const { profile, loading } = useTasteProfile();
-  const { refs } = useReferences(user?.id);
+  const { refs, refetch: refetchRefs } = useReferences(user?.id);
   const urls = useReferenceUrls(refs);
 
   const [brief, setBrief] = useState("");
+  const [link, setLink] = useState("");
   const [format, setFormat] = useState("brief");
+  const [dimensions, setDimensions] = useState("1024x1024");
   const [selectedRefIds, setSelectedRefIds] = useState<Set<string>>(new Set());
+  const [inspirations, setInspirations] = useState<{ id: string; dataUrl: string }[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [busy, setBusy] = useState(false);
   const [output, setOutput] = useState<Output | null>(null);
   const [outputFormat, setOutputFormat] = useState<string>("brief");
   const [htmlView, setHtmlView] = useState<"preview" | "code">("preview");
+  const [savingRef, setSavingRef] = useState(false);
+  const [savingHistory, setSavingHistory] = useState(false);
+  const [historySaved, setHistorySaved] = useState(false);
+  const [refSaved, setRefSaved] = useState(false);
 
   if (loading) return null;
 
@@ -61,35 +87,73 @@ export default function GeneratePage() {
     });
   };
 
+  const onUploadInspiration = async (files: FileList | null) => {
+    if (!files) return;
+    const arr = Array.from(files).slice(0, 6);
+    try {
+      const uploaded = await Promise.all(
+        arr.map(async (f) => ({ id: crypto.randomUUID(), dataUrl: await fileToDataUrl(f) }))
+      );
+      setInspirations((p) => [...p, ...uploaded].slice(0, 8));
+    } catch {
+      toast.error("Couldn't read those files.");
+    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const removeInspiration = (id: string) => {
+    setInspirations((p) => p.filter((i) => i.id !== id));
+  };
+
   const generate = async () => {
     if (!brief.trim()) {
       toast.error("Tell me what you're making.");
       return;
     }
     setBusy(true);
+    setHistorySaved(false);
+    setRefSaved(false);
     try {
       const selectedRefs = refs
         .filter((r) => selectedRefIds.has(r.id))
         .map((r) => ({ label: r.label, commentary: r.commentary }));
 
       const { data, error } = await supabase.functions.invoke("generate-output", {
-        body: { brief, format, profile, selectedRefs },
+        body: {
+          brief,
+          format,
+          profile,
+          selectedRefs,
+          link: link.trim() || null,
+          inspirationImages: inspirations.map((i) => i.dataUrl),
+          imageDimensions: format === "image" ? dimensions : null,
+        },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      setOutput({ result: data.result, rationale: data.rationale, image_prompt: data.image_prompt });
+      // Save the generation row (not in history yet)
+      const { data: inserted, error: insErr } = await supabase
+        .from("generations")
+        .insert({
+          user_id: user!.id,
+          brief,
+          link: link.trim() || null,
+          reference_ids: Array.from(selectedRefIds),
+          inspirations: [], // ad-hoc data URLs are not persisted; only counted
+          output_format: format,
+          image_dimensions: format === "image" ? dimensions : null,
+          result: data.result,
+          rationale: data.rationale,
+          saved_to_history: false,
+        })
+        .select("id")
+        .single();
+      if (insErr) console.error(insErr);
+
+      setOutput({ id: inserted?.id, result: data.result, rationale: data.rationale, image_prompt: data.image_prompt });
       setOutputFormat(format);
       setHtmlView("preview");
-
-      await supabase.from("generations").insert({
-        user_id: user!.id,
-        brief,
-        reference_ids: Array.from(selectedRefIds),
-        output_format: format,
-        result: data.result,
-        rationale: data.rationale,
-      });
     } catch (e: any) {
       toast.error(e.message ?? "Generation failed");
     } finally {
@@ -110,6 +174,57 @@ export default function GeneratePage() {
     a.click();
   };
 
+  const dataUrlToBlob = async (dataUrl: string) => {
+    const res = await fetch(dataUrl);
+    return await res.blob();
+  };
+
+  const saveToReferences = async (rating: LabelKind) => {
+    if (!output || outputFormat !== "image" || !user) return;
+    setSavingRef(true);
+    try {
+      const blob = await dataUrlToBlob(output.result);
+      const path = `${user.id}/generated-${Date.now()}.png`;
+      const { error: upErr } = await supabase.storage.from("references").upload(path, blob, {
+        contentType: "image/png",
+        upsert: false,
+      });
+      if (upErr) throw upErr;
+      const { error: dbErr } = await supabase.from("references").insert({
+        user_id: user.id,
+        storage_path: path,
+        label: rating,
+        commentary: brief.slice(0, 200),
+      });
+      if (dbErr) throw dbErr;
+      toast.success(`Saved to references as "${rating}".`);
+      setRefSaved(true);
+      refetchRefs();
+    } catch (e: any) {
+      toast.error(e.message ?? "Couldn't save reference");
+    } finally {
+      setSavingRef(false);
+    }
+  };
+
+  const saveToHistory = async (rating?: LabelKind) => {
+    if (!output?.id) return;
+    setSavingHistory(true);
+    try {
+      const { error } = await supabase
+        .from("generations")
+        .update({ saved_to_history: true, ...(rating ? { rating } : {}) })
+        .eq("id", output.id);
+      if (error) throw error;
+      toast.success("Saved to history.");
+      setHistorySaved(true);
+    } catch (e: any) {
+      toast.error(e.message ?? "Couldn't save to history");
+    } finally {
+      setSavingHistory(false);
+    }
+  };
+
   return (
     <div className="px-12 py-16 max-w-3xl">
       <div className="text-eyebrow mb-4">Generate</div>
@@ -128,9 +243,57 @@ export default function GeneratePage() {
         </div>
 
         <div>
-          <label className="text-eyebrow block mb-3">Pick references to draw from</label>
+          <label className="text-eyebrow block mb-3">Website or social link <span className="text-ink-faint normal-case tracking-normal">(optional)</span></label>
+          <Input
+            value={link}
+            onChange={(e) => setLink(e.target.value)}
+            placeholder="https://yourbrand.com or https://instagram.com/handle"
+            className="bg-transparent border-border text-[14px] focus-visible:ring-0 focus-visible:border-ink/40"
+          />
+        </div>
+
+        <div>
+          <div className="flex items-end justify-between mb-3">
+            <label className="text-eyebrow">Inspirations for this piece <span className="text-ink-faint normal-case tracking-normal">(not saved)</span></label>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="text-xs text-muted-foreground hover:text-ink inline-flex items-center gap-1.5"
+            >
+              <Upload className="w-3.5 h-3.5" /> Upload
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              hidden
+              onChange={(e) => onUploadInspiration(e.target.files)}
+            />
+          </div>
+          {inspirations.length === 0 ? (
+            <p className="text-sm text-ink-faint">Drop in screenshots or photos to steer this generation only.</p>
+          ) : (
+            <div className="grid grid-cols-4 gap-3">
+              {inspirations.map((i) => (
+                <div key={i.id} className="relative aspect-[4/3] rounded overflow-hidden border border-border">
+                  <img src={i.dataUrl} alt="" className="w-full h-full object-cover" />
+                  <button
+                    onClick={() => removeInspiration(i.id)}
+                    className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-background/80 backdrop-blur border border-border flex items-center justify-center hover:bg-background"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <label className="text-eyebrow block mb-3">Pick saved references to draw from</label>
           {refs.length === 0 ? (
-            <p className="text-sm text-ink-faint">No references uploaded.</p>
+            <p className="text-sm text-ink-faint">No references uploaded yet.</p>
           ) : (
             <div className="grid grid-cols-4 gap-3">
               {refs.map((r) => {
@@ -171,6 +334,25 @@ export default function GeneratePage() {
             ))}
           </div>
         </div>
+
+        {format === "image" && (
+          <div>
+            <label className="text-eyebrow block mb-3">Image dimensions</label>
+            <div className="flex flex-wrap gap-2">
+              {DIMENSIONS.map((d) => (
+                <button
+                  key={d.id}
+                  onClick={() => setDimensions(d.id)}
+                  className={`text-sm px-4 py-2 rounded-full border transition ${
+                    dimensions === d.id ? "border-ink text-ink bg-secondary/40" : "border-border text-muted-foreground hover:text-ink"
+                  }`}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="pt-2">
           <Button onClick={generate} disabled={busy} className="h-11 px-6">
@@ -246,6 +428,52 @@ export default function GeneratePage() {
                 <Copy className="w-4 h-4 mr-2" /> Copy
               </Button>
             )}
+          </div>
+
+          {outputFormat === "image" && (
+            <div className="pt-4 border-t border-border">
+              <div className="text-eyebrow mb-3">Save to references</div>
+              <p className="text-sm text-ink-faint mb-4">Rate it and add it to your library so it shapes future work.</p>
+              <div className="flex items-center gap-2">
+                {(["good", "best", "bad"] as LabelKind[]).map((k) => (
+                  <button
+                    key={k}
+                    onClick={() => saveToReferences(k)}
+                    disabled={savingRef || refSaved}
+                    className="disabled:opacity-50"
+                  >
+                    <LabelChip kind={k} size="md" />
+                  </button>
+                ))}
+                {refSaved && <span className="text-xs text-ink-faint ml-2">Saved.</span>}
+              </div>
+            </div>
+          )}
+
+          <div className="pt-4 border-t border-border">
+            <div className="text-eyebrow mb-3">Save to history</div>
+            <p className="text-sm text-ink-faint mb-4">Rate this generation and keep it in your history.</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              {(["good", "best", "bad"] as LabelKind[]).map((k) => (
+                <button
+                  key={k}
+                  onClick={() => saveToHistory(k)}
+                  disabled={savingHistory || historySaved}
+                  className="disabled:opacity-50"
+                >
+                  <LabelChip kind={k} size="md" />
+                </button>
+              ))}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => saveToHistory()}
+                disabled={savingHistory || historySaved}
+                className="ml-2"
+              >
+                {historySaved ? <><Save className="w-3.5 h-3.5 mr-2" /> Saved</> : <><BookmarkPlus className="w-3.5 h-3.5 mr-2" /> Save without rating</>}
+              </Button>
+            </div>
           </div>
         </div>
       )}
