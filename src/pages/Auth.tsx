@@ -77,10 +77,6 @@ export default function Auth() {
       toast.error("Please enter your password.");
       return;
     }
-    if (password.length < 6) {
-      toast.error("Your password must be at least 6 characters long.");
-      return;
-    }
 
     setBusy(true);
     try {
@@ -91,7 +87,7 @@ export default function Auth() {
           options: { emailRedirectTo: `${window.location.origin}/` },
         });
         if (error) throw error;
-        toast.success("Account created! Check your email to confirm, then sign in.");
+        toast.success("Account created. Welcome!");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email: trimmedEmail, password });
         if (error) throw error;
@@ -136,7 +132,6 @@ export default function Auth() {
               onChange={(e) => setPassword(e.target.value)}
               className="bg-transparent border-border h-11"
               required
-              minLength={6}
             />
           </div>
 
