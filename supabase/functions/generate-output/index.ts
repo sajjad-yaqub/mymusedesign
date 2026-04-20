@@ -168,7 +168,15 @@ Write a vivid image-generation prompt (one paragraph, 80-150 words) that reflect
 
     // ===== TEXT FORMATS =====
     const formatInstructions: Record<string, string> = {
-      "html": "Produce a single self-contained HTML file (with inline <style>) for a clean, well-considered mockup. Use system fonts. Return ONLY the HTML, starting with <!DOCTYPE html>. No markdown fences, no commentary.",
+      "html": `Produce a single self-contained HTML file (with inline <style>) for a clean, well-considered mockup. Use system fonts.
+
+CRITICAL — IMAGES: Never use grey boxes, solid color blocks, "image placeholder" text, or empty <div>s where an image belongs. Every image slot MUST contain a real, working image. Use ONLY these sources (all return real photos via direct hotlink, no API key needed):
+  • Unsplash Source: https://source.unsplash.com/featured/{w}x{h}/?{keywords}  (e.g. https://source.unsplash.com/featured/1200x800/?minimal,architecture)
+  • Picsum (random photo): https://picsum.photos/seed/{any-unique-word}/{w}/{h}
+  • Pravatar (avatars/people): https://i.pravatar.cc/{size}?img={1-70}
+Choose keywords that match the brief and the designer's taste. Use distinct seeds/keywords per image so they don't repeat. Always set width, height, and descriptive alt text on every <img>. For decorative backgrounds you may also use inline SVG or CSS gradients — but never a flat grey rectangle standing in for content.
+
+Return ONLY the HTML, starting with <!DOCTYPE html>. No markdown fences, no commentary.`,
       "image_prompt": "Produce a single, vivid image-generation prompt (one paragraph, ~80-150 words) that another model could use to render the work. Be visually specific.",
       "brief": "Produce a creative brief (250-400 words) with sections: Concept, Direction, Tone, Key choices, Things to avoid.",
     };
