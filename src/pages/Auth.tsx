@@ -45,7 +45,10 @@ export default function Auth() {
       return "New sign-ups are temporarily turned off. Please try again later.";
     }
     if (msg.includes("weak") && msg.includes("password")) {
-      return "Please choose a stronger password (try mixing letters, numbers, and symbols).";
+      return "Your password is too weak. Use at least 8 characters with a mix of uppercase letters, lowercase letters, numbers, and a symbol (e.g. Muse@2026).";
+    }
+    if (msg.includes("pwned") || msg.includes("compromised") || msg.includes("breach") || msg.includes("data breach")) {
+      return "This password has appeared in a known data breach. Please choose a different one — at least 8 characters mixing uppercase, lowercase, numbers, and a symbol.";
     }
     if (msg.includes("rate limit") || msg.includes("too many")) {
       return "Too many attempts. Please wait a minute and try again.";
