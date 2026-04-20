@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTasteProfile } from "@/hooks/useTasteProfile";
 import { useReferences, useReferenceUrls } from "@/hooks/useReferences";
@@ -6,8 +6,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { Loader2, Copy, RefreshCw, Download, Eye, Code2, Upload, X, BookmarkPlus, Save } from "lucide-react";
+import { Loader2, Copy, RefreshCw, Download, Eye, Code2, Upload, X, BookmarkPlus, Save, Sparkles } from "lucide-react";
 import { LabelChip, type LabelKind } from "@/components/LabelChip";
 import { Link } from "react-router-dom";
 
