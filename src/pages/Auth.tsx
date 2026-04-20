@@ -18,29 +18,85 @@ export default function Auth() {
   if (loading) return null;
   if (user) return <Navigate to="/" replace />;
 
+  const friendlyError = (raw: string): string => {
+    const msg = raw.toLowerCase();
+
+    // Sign in errors
+    if (msg.includes("invalid login credentials") || msg.includes("invalid_credentials")) {
+      return mode === "signin"
+        ? "That email and password don't match. Double-check them, or create an account if you're new."
+        : "Those details didn't work. Please try again.";
+    }
+    if (msg.includes("email not confirmed")) {
+      return "Please check your inbox and click the confirmation link before signing in.";
+    }
+
+    // Sign up errors
+    if (msg.includes("user already registered") || msg.includes("already been registered") || msg.includes("already registered")) {
+      return "An account with this email already exists. Try signing in instead.";
+    }
+    if (msg.includes("password should be at least")) {
+      return "Your password is too short. Please use at least 6 characters.";
+    }
+    if (msg.includes("unable to validate email") || msg.includes("invalid email") || msg.includes("invalid format")) {
+      return "That doesn't look like a valid email address. Please check and try again.";
+    }
+    if (msg.includes("signup") && msg.includes("disabled")) {
+      return "New sign-ups are temporarily turned off. Please try again later.";
+    }
+    if (msg.includes("weak") && msg.includes("password")) {
+      return "Please choose a stronger password (try mixing letters, numbers, and symbols).";
+    }
+    if (msg.includes("rate limit") || msg.includes("too many")) {
+      return "Too many attempts. Please wait a minute and try again.";
+    }
+    if (msg.includes("network") || msg.includes("fetch")) {
+      return "Connection problem. Please check your internet and try again.";
+    }
+
+    return "Something went wrong. Please try again in a moment.";
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || password.length < 6) {
-      toast.error("Use a valid email and a password of 6+ characters.");
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      toast.error("Please enter your email address.");
       return;
     }
+    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
+    if (!emailValid) {
+      toast.error("Please enter a valid email address (e.g. you@example.com).");
+      return;
+    }
+    if (!password) {
+      toast.error("Please enter your password.");
+      return;
+    }
+    if (password.length < 6) {
+      toast.error("Your password must be at least 6 characters long.");
+      return;
+    }
+
     setBusy(true);
     try {
       if (mode === "signup") {
         const { error } = await supabase.auth.signUp({
-          email,
+          email: trimmedEmail,
           password,
           options: { emailRedirectTo: `${window.location.origin}/` },
         });
         if (error) throw error;
-        toast.success("Account created. You're in.");
+        toast.success("Account created! Check your email to confirm, then sign in.");
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await supabase.auth.signInWithPassword({ email: trimmedEmail, password });
         if (error) throw error;
+        toast.success("Welcome back.");
       }
       navigate("/", { replace: true });
     } catch (err: any) {
-      toast.error(err.message ?? "Something went wrong.");
+      toast.error(friendlyError(err?.message ?? ""));
     } finally {
       setBusy(false);
     }
