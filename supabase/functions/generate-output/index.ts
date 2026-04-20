@@ -54,7 +54,69 @@ Deno.serve(async (req) => {
       `Ref ${i + 1} [${r.label}]${r.commentary ? `: "${r.commentary}"` : ""}`
     ).join("\n") || "(none selected from saved references)";
 
-    const linkBlock = link ? `\nRELATED LINK (use as context — website / social): ${link}` : "";
+    // ===== Scrape the related link for vibe / palette / logo =====
+    let linkContext = "";
+    if (link) {
+      try {
+        const u = new URL(link.startsWith("http") ? link : `https://${link}`);
+        const origin = u.origin;
+        const pageRes = await fetch(u.toString(), {
+          headers: { "User-Agent": "Mozilla/5.0 (compatible; MyMuseBot/1.0)" },
+          signal: AbortSignal.timeout(8000),
+        });
+        const html = (await pageRes.text()).slice(0, 200_000);
+
+        const pick = (re: RegExp) => (html.match(re)?.[1] ?? "").trim();
+        const title = pick(/<title[^>]*>([^<]+)<\/title>/i);
+        const desc = pick(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i)
+          || pick(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i);
+        const ogImage = pick(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
+        const themeColor = pick(/<meta[^>]+name=["']theme-color["'][^>]+content=["']([^"']+)["']/i);
+        const favicon = pick(/<link[^>]+rel=["'](?:icon|shortcut icon|apple-touch-icon)["'][^>]+href=["']([^"']+)["']/i);
+
+        // Collect hex colors from inline styles / style tags
+        const hexColors = Array.from(html.matchAll(/#([0-9a-fA-F]{6})\b/g)).map((m) => `#${m[1].toLowerCase()}`);
+        const colorCounts: Record<string, number> = {};
+        for (const c of hexColors) colorCounts[c] = (colorCounts[c] || 0) + 1;
+        const topColors = Object.entries(colorCounts)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 6)
+          .map(([c]) => c);
+
+        // Visible text (rough)
+        const text = html
+          .replace(/<script[\s\S]*?<\/script>/gi, " ")
+          .replace(/<style[\s\S]*?<\/style>/gi, " ")
+          .replace(/<[^>]+>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 1500);
+
+        const absolutize = (src: string) => {
+          if (!src) return "";
+          if (src.startsWith("//")) return "https:" + src;
+          if (src.startsWith("http")) return src;
+          if (src.startsWith("/")) return origin + src;
+          return origin + "/" + src;
+        };
+
+        linkContext = `
+RELATED LINK: ${link}
+- Site title: ${title || "(unknown)"}
+- Description: ${desc || "(none)"}
+- Logo / favicon: ${absolutize(favicon) || "(none found)"}
+- OG image: ${absolutize(ogImage) || "(none)"}
+- Theme color: ${themeColor || "(none)"}
+- Most-used hex colors on page: ${topColors.join(", ") || "(none detected)"}
+- Visible copy excerpt: "${text}"
+
+When generating, mirror this brand's vibe — reuse the palette above, echo the tone of the copy, and if rendering an HTML mockup you MAY embed the logo/og-image directly via their absolute URLs.`;
+      } catch (e) {
+        console.warn("link scrape failed:", e);
+        linkContext = `\nRELATED LINK (couldn't fetch, use the URL as a hint): ${link}`;
+      }
+    }
+    const linkBlock = linkContext;
     const inspirationCount = Array.isArray(inspirationImages) ? inspirationImages.length : 0;
     const inspirationBlock = inspirationCount > 0
       ? `\nThe designer also attached ${inspirationCount} ad-hoc inspiration image(s) for THIS piece only. Treat them as direct visual cues.`
@@ -170,11 +232,13 @@ Write a vivid image-generation prompt (one paragraph, 80-150 words) that reflect
     const formatInstructions: Record<string, string> = {
       "html": `Produce a single self-contained HTML file (with inline <style>) for a clean, well-considered mockup. Use system fonts.
 
-CRITICAL — IMAGES: Never use grey boxes, solid color blocks, "image placeholder" text, or empty <div>s where an image belongs. Every image slot MUST contain a real, working image. Use ONLY these sources (all return real photos via direct hotlink, no API key needed):
-  • Unsplash Source: https://source.unsplash.com/featured/{w}x{h}/?{keywords}  (e.g. https://source.unsplash.com/featured/1200x800/?minimal,architecture)
-  • Picsum (random photo): https://picsum.photos/seed/{any-unique-word}/{w}/{h}
+CRITICAL — IMAGES: Never use grey boxes, solid color blocks, "image placeholder" text, or empty <div>s where an image belongs. Every image slot MUST contain a real, working image with a real https URL in src. Use ONLY these sources (no API key, no redirects, all reliable):
+  • Picsum (random photo, ALWAYS works): https://picsum.photos/seed/{any-unique-word}/{w}/{h}  — use a different seed per image (seed=hero-1, seed=feature-2, etc.)
+  • Loremflickr (keyword photo): https://loremflickr.com/{w}/{h}/{keyword,keyword2}?lock={n}  — pick keywords matching the brief
   • Pravatar (avatars/people): https://i.pravatar.cc/{size}?img={1-70}
-Choose keywords that match the brief and the designer's taste. Use distinct seeds/keywords per image so they don't repeat. Always set width, height, and descriptive alt text on every <img>. For decorative backgrounds you may also use inline SVG or CSS gradients — but never a flat grey rectangle standing in for content.
+  • If the RELATED LINK context above gave you a logo/favicon/og:image absolute URL, embed THAT directly (e.g. as the brand logo in the header) — it makes the mockup feel real.
+
+Do NOT use source.unsplash.com — it is deprecated and returns nothing. Always set width, height, loading="lazy", and descriptive alt text on every <img>. Add onerror="this.style.display='none'" as a safety net. For decorative backgrounds you may use inline SVG or CSS gradients — but never a flat grey rectangle standing in for content.
 
 Return ONLY the HTML, starting with <!DOCTYPE html>. No markdown fences, no commentary.`,
       "image_prompt": "Produce a single, vivid image-generation prompt (one paragraph, ~80-150 words) that another model could use to render the work. Be visually specific.",

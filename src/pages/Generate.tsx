@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTasteProfile } from "@/hooks/useTasteProfile";
 import { useReferences, useReferenceUrls } from "@/hooks/useReferences";
@@ -6,8 +6,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { Loader2, Copy, RefreshCw, Download, Eye, Code2, Upload, X, BookmarkPlus, Save } from "lucide-react";
+import { Loader2, Copy, RefreshCw, Download, Eye, Code2, Upload, X, BookmarkPlus, Save, Sparkles } from "lucide-react";
 import { LabelChip, type LabelKind } from "@/components/LabelChip";
 import { Link } from "react-router-dom";
 
@@ -51,6 +52,7 @@ export default function GeneratePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [busy, setBusy] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const [output, setOutput] = useState<Output | null>(null);
   const [outputFormat, setOutputFormat] = useState<string>("brief");
   const [htmlView, setHtmlView] = useState<"preview" | "code">("preview");
@@ -58,6 +60,28 @@ export default function GeneratePage() {
   const [savingHistory, setSavingHistory] = useState(false);
   const [historySaved, setHistorySaved] = useState(false);
   const [refSaved, setRefSaved] = useState(false);
+
+  // Estimated time per format (seconds). Image is two-step so longest.
+  const ESTIMATE_S: Record<string, number> = { brief: 18, image_prompt: 15, html: 35, image: 50 };
+  const estimate = ESTIMATE_S[format] ?? 25;
+
+  // Tick a timer while generating
+  useEffect(() => {
+    if (!busy) { setElapsed(0); return; }
+    const start = Date.now();
+    const t = setInterval(() => setElapsed((Date.now() - start) / 1000), 200);
+    return () => clearInterval(t);
+  }, [busy]);
+
+  const STEPS = format === "image"
+    ? ["Reading your taste profile", "Studying your references", "Drafting the image prompt", "Rendering the image"]
+    : format === "html"
+    ? ["Reading your taste profile", "Studying your references", link ? "Pulling vibe from your link" : "Sketching the layout", "Wiring up the markup"]
+    : ["Reading your taste profile", "Studying your references", "Shaping the direction", "Polishing the output"];
+  const stepIdx = Math.min(STEPS.length - 1, Math.floor((elapsed / Math.max(estimate, 1)) * STEPS.length));
+  const pct = Math.min(96, (elapsed / Math.max(estimate, 1)) * 100); // never hit 100 until done
+  const remaining = Math.max(0, Math.ceil(estimate - elapsed));
+  const overrun = elapsed > estimate;
 
   if (loading) return null;
 
@@ -359,6 +383,39 @@ export default function GeneratePage() {
             {busy ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating…</> : "Generate"}
           </Button>
         </div>
+
+        {busy && (
+          <div className="mt-2 rounded-lg border border-border bg-card/40 p-6 animate-fade-in">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 text-sm text-ink">
+                <Sparkles className="w-4 h-4 text-primary animate-pulse" />
+                <span className="font-medium">{STEPS[stepIdx]}…</span>
+              </div>
+              <div className="text-xs text-muted-foreground tabular-nums">
+                {overrun ? `${Math.round(elapsed)}s — almost there` : `~${remaining}s left`}
+              </div>
+            </div>
+            <Progress value={pct} className="h-1.5" />
+            <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+              {STEPS.map((s, i) => (
+                <span
+                  key={s}
+                  className={`inline-flex items-center gap-1.5 transition ${
+                    i < stepIdx ? "text-ink/70" : i === stepIdx ? "text-ink" : "opacity-50"
+                  }`}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      i < stepIdx ? "bg-primary" : i === stepIdx ? "bg-primary animate-pulse" : "bg-muted-foreground/40"
+                    }`}
+                  />
+                  {s}
+                </span>
+              ))}
+            </div>
+            <p className="mt-4 text-xs text-ink-faint italic">Hang tight — good taste takes a moment.</p>
+          </div>
+        )}
       </div>
 
       {output && (
