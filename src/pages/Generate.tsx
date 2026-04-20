@@ -52,6 +52,7 @@ export default function GeneratePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [busy, setBusy] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const [output, setOutput] = useState<Output | null>(null);
   const [outputFormat, setOutputFormat] = useState<string>("brief");
   const [htmlView, setHtmlView] = useState<"preview" | "code">("preview");
@@ -59,6 +60,28 @@ export default function GeneratePage() {
   const [savingHistory, setSavingHistory] = useState(false);
   const [historySaved, setHistorySaved] = useState(false);
   const [refSaved, setRefSaved] = useState(false);
+
+  // Estimated time per format (seconds). Image is two-step so longest.
+  const ESTIMATE_S: Record<string, number> = { brief: 18, image_prompt: 15, html: 35, image: 50 };
+  const estimate = ESTIMATE_S[format] ?? 25;
+
+  // Tick a timer while generating
+  useEffect(() => {
+    if (!busy) { setElapsed(0); return; }
+    const start = Date.now();
+    const t = setInterval(() => setElapsed((Date.now() - start) / 1000), 200);
+    return () => clearInterval(t);
+  }, [busy]);
+
+  const STEPS = format === "image"
+    ? ["Reading your taste profile", "Studying your references", "Drafting the image prompt", "Rendering the image"]
+    : format === "html"
+    ? ["Reading your taste profile", "Studying your references", link ? "Pulling vibe from your link" : "Sketching the layout", "Wiring up the markup"]
+    : ["Reading your taste profile", "Studying your references", "Shaping the direction", "Polishing the output"];
+  const stepIdx = Math.min(STEPS.length - 1, Math.floor((elapsed / Math.max(estimate, 1)) * STEPS.length));
+  const pct = Math.min(96, (elapsed / Math.max(estimate, 1)) * 100); // never hit 100 until done
+  const remaining = Math.max(0, Math.ceil(estimate - elapsed));
+  const overrun = elapsed > estimate;
 
   if (loading) return null;
 
