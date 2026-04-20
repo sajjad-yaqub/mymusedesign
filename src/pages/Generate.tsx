@@ -383,6 +383,39 @@ export default function GeneratePage() {
             {busy ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating…</> : "Generate"}
           </Button>
         </div>
+
+        {busy && (
+          <div className="mt-2 rounded-lg border border-border bg-card/40 p-6 animate-fade-in">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 text-sm text-ink">
+                <Sparkles className="w-4 h-4 text-primary animate-pulse" />
+                <span className="font-medium">{STEPS[stepIdx]}…</span>
+              </div>
+              <div className="text-xs text-muted-foreground tabular-nums">
+                {overrun ? `${Math.round(elapsed)}s — almost there` : `~${remaining}s left`}
+              </div>
+            </div>
+            <Progress value={pct} className="h-1.5" />
+            <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+              {STEPS.map((s, i) => (
+                <span
+                  key={s}
+                  className={`inline-flex items-center gap-1.5 transition ${
+                    i < stepIdx ? "text-ink/70" : i === stepIdx ? "text-ink" : "opacity-50"
+                  }`}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      i < stepIdx ? "bg-primary" : i === stepIdx ? "bg-primary animate-pulse" : "bg-muted-foreground/40"
+                    }`}
+                  />
+                  {s}
+                </span>
+              ))}
+            </div>
+            <p className="mt-4 text-xs text-ink-faint italic">Hang tight — good taste takes a moment.</p>
+          </div>
+        )}
       </div>
 
       {output && (
