@@ -36,12 +36,10 @@ export default function ProfilePage() {
 
   if (!profile) {
     return (
-      <div className="px-12 py-24 max-w-2xl">
-        <h1 className="font-serif text-4xl text-ink mb-3">No profile yet.</h1>
-        <p className="text-muted-foreground mb-8 leading-relaxed">
-          Start with the interview to build your taste profile.
-        </p>
-        <Button onClick={() => navigate("/interview")}>Start interview</Button>
+      <div className="px-5 md:px-12 py-16 md:py-24 max-w-2xl mx-auto md:mx-0">
+        <h1 className="font-serif text-3xl md:text-4xl text-ink mb-3">No profile yet.</h1>
+        <p className="text-muted-foreground mb-8 leading-relaxed">Build it in a few minutes.</p>
+        <Button onClick={() => navigate("/taste")} className="h-12 px-8">Design Your Taste</Button>
       </div>
     );
   }
@@ -61,14 +59,14 @@ export default function ProfilePage() {
   const groups: { label: LabelKind }[] = [{ label: "best" }, { label: "good" }, { label: "bad" }];
 
   return (
-    <div className="px-12 py-16 max-w-3xl">
-      <div className="flex items-baseline justify-between mb-12">
+    <div className="px-5 md:px-12 py-10 md:py-16 max-w-3xl mx-auto md:mx-0">
+      <div className="flex items-baseline justify-between mb-10 md:mb-12 gap-4">
         <div>
           <div className="text-eyebrow mb-3">Profile</div>
-          <h1 className="font-serif text-5xl text-ink leading-tight">Your taste.</h1>
+          <h1 className="font-serif text-4xl md:text-5xl text-ink leading-tight">Your taste.</h1>
         </div>
-        <Link to="/interview" className="text-sm text-muted-foreground hover:text-ink">
-          Re-interview →
+        <Link to="/taste" className="text-sm text-muted-foreground hover:text-ink shrink-0">
+          Redo →
         </Link>
       </div>
 
@@ -92,7 +90,7 @@ export default function ProfilePage() {
         />
 
         <TagSection
-          label="I always avoid"
+          label="Avoid"
           tags={avoid}
           input={tagInput.avoid}
           onInput={(v) => setTagInput((s) => ({ ...s, avoid: v }))}
@@ -108,7 +106,7 @@ export default function ProfilePage() {
               return (
                 <div key={label}>
                   <div className="mb-3"><LabelChip kind={label} active /></div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {items.map((r) => (
                       <div key={r.id} className="aspect-[4/3] bg-secondary/40 rounded overflow-hidden border border-border">
                         {urls[r.id] && <img src={urls[r.id]} alt="" className="w-full h-full object-cover" />}
@@ -122,9 +120,9 @@ export default function ProfilePage() {
         </section>
 
         {dirty && (
-          <div className="sticky bottom-6 flex gap-3 pt-4 border-t border-border bg-background/80 backdrop-blur">
-            <Button onClick={save}>Save changes</Button>
-            <Button variant="ghost" onClick={() => { if (profile) { setSummary(profile.summary); setValues(profile.values); setAvoid(profile.avoid); setDirty(false); } }}>
+          <div className="sticky bottom-20 md:bottom-6 flex flex-wrap gap-3 pt-4 border-t border-border bg-background/80 backdrop-blur">
+            <Button onClick={save} className="h-12 px-6">Save</Button>
+            <Button variant="ghost" onClick={() => { if (profile) { setSummary(profile.summary); setValues(profile.values); setAvoid(profile.avoid); setDirty(false); } }} className="h-12">
               Discard
             </Button>
           </div>
@@ -163,7 +161,7 @@ function TagSection({ label, tags, input, onInput, onChange }: {
             onInput("");
           }
         }}
-        placeholder="Add and press Enter…"
+        placeholder="Add + Enter"
         className="bg-transparent border-b border-border text-sm py-1 focus:outline-none focus:border-ink/40 w-full max-w-xs"
       />
     </section>

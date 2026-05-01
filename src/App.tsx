@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import AppShell from "./components/AppShell";
 import Auth from "./pages/Auth";
-import Interview from "./pages/Interview";
+import Taste from "./pages/Interview";
 import Profile from "./pages/Profile";
 import Generate from "./pages/Generate";
 import History from "./pages/History";
@@ -24,7 +24,8 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route element={<AppShell />}>
             <Route path="/" element={<RootRedirect />} />
-            <Route path="/interview" element={<Interview />} />
+            <Route path="/taste" element={<Taste />} />
+            <Route path="/interview" element={<Taste />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/generate" element={<Generate />} />
             <Route path="/history" element={<History />} />

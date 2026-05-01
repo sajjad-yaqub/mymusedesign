@@ -49,14 +49,14 @@ export default function HistoryPage() {
   if (loading) return null;
 
   return (
-    <div className="px-12 py-16 max-w-4xl">
-      <div className="text-eyebrow mb-4">History</div>
-      <h1 className="font-serif text-5xl text-ink mb-12 leading-tight">What you've made.</h1>
+    <div className="px-5 md:px-12 py-10 md:py-16 max-w-4xl mx-auto md:mx-0">
+      <div className="text-eyebrow mb-3">History</div>
+      <h1 className="font-serif text-4xl md:text-5xl text-ink mb-10 md:mb-12 leading-tight">What you've made.</h1>
 
       {items.length === 0 ? (
         <div className="text-ink-faint text-[15px] leading-relaxed">
-          Nothing saved yet. When you generate something on the{" "}
-          <Link to="/generate" className="text-ink underline">Generate</Link> page, hit "Save to history" to keep it here.
+          Nothing yet. Hit{" "}
+          <Link to="/generate" className="text-ink underline">Generate</Link>, then save.
         </div>
       ) : (
         <ul className="divide-y divide-border border-y border-border">
@@ -98,17 +98,17 @@ export default function HistoryPage() {
                       </div>
                     )}
 
-                    {it.output_format === "image" ? (
+                    {(it.output_format === "image" || it.output_format === "landing" || it.output_format === "app") && it.result?.startsWith("data:image") ? (
                       <img src={it.result} alt="" className="w-full max-w-2xl rounded border border-border" />
                     ) : it.output_format === "html" ? (
                       <iframe
                         title="Preview"
                         srcDoc={it.result}
                         sandbox="allow-same-origin"
-                        className="w-full h-[480px] bg-white border border-border rounded"
+                        className="w-full h-[420px] md:h-[480px] bg-white border border-border rounded"
                       />
                     ) : (
-                      <pre className="whitespace-pre-wrap text-[14px] text-ink leading-relaxed font-sans bg-card border border-border rounded p-6 max-h-[420px] overflow-auto">
+                      <pre className="whitespace-pre-wrap text-[14px] text-ink leading-relaxed font-sans bg-card border border-border rounded p-5 md:p-6 max-h-[420px] overflow-auto">
                         {it.result}
                       </pre>
                     )}

@@ -2,12 +2,13 @@ import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect } from "react";
+import { Sparkles, User, Compass, Clock, LogOut } from "lucide-react";
 
 const sections = [
-  { to: "/generate", label: "Generate" },
-  { to: "/profile", label: "Profile" },
-  { to: "/interview", label: "Interview" },
-  { to: "/history", label: "History" },
+  { to: "/generate", label: "Generate", icon: Sparkles },
+  { to: "/taste", label: "Your Taste", icon: Compass },
+  { to: "/profile", label: "Profile", icon: User },
+  { to: "/history", label: "History", icon: Clock },
 ];
 
 export default function AppShell() {
@@ -21,13 +22,13 @@ export default function AppShell() {
   if (loading || !user) return null;
 
   return (
-    <div className="min-h-screen flex bg-background text-foreground">
-      {/* Sidebar */}
-      <aside className="w-60 shrink-0 border-r border-border flex flex-col">
+    <div className="min-h-screen flex flex-col md:flex-row bg-background text-foreground">
+      {/* Sidebar — desktop */}
+      <aside className="hidden md:flex w-60 shrink-0 border-r border-border flex-col">
         <div className="px-7 pt-8 pb-12">
           <div className="font-serif text-xl text-ink leading-none">My Muse</div>
           <div className="text-[11px] tracking-[0.18em] uppercase text-ink-faint mt-2">
-            Personal design intelligence
+            Design intelligence
           </div>
         </div>
 
@@ -63,9 +64,47 @@ export default function AppShell() {
         </div>
       </aside>
 
-      <main className="flex-1 min-w-0 overflow-y-auto">
+      {/* Top bar — mobile */}
+      <header className="md:hidden flex items-center justify-between px-5 h-14 border-b border-border">
+        <div className="font-serif text-lg text-ink">My Muse</div>
+        <button
+          onClick={async () => {
+            await supabase.auth.signOut();
+            navigate("/auth", { replace: true });
+          }}
+          aria-label="Sign out"
+          className="text-muted-foreground hover:text-ink"
+        >
+          <LogOut className="w-4 h-4" />
+        </button>
+      </header>
+
+      <main className="flex-1 min-w-0 overflow-y-auto pb-20 md:pb-0">
         <Outlet />
       </main>
+
+      {/* Bottom nav — mobile */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t border-border bg-background/95 backdrop-blur z-40">
+        <div className="grid grid-cols-4">
+          {sections.map((s) => {
+            const Icon = s.icon;
+            return (
+              <NavLink
+                key={s.to}
+                to={s.to}
+                className={({ isActive }) =>
+                  `flex flex-col items-center justify-center gap-1 py-2.5 min-h-[56px] text-[10px] tracking-wide transition ${
+                    isActive ? "text-ink" : "text-muted-foreground"
+                  }`
+                }
+              >
+                <Icon className="w-4 h-4" />
+                {s.label}
+              </NavLink>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }
