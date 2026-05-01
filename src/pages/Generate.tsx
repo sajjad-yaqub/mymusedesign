@@ -58,6 +58,7 @@ export default function GeneratePage() {
   const [savingHistory, setSavingHistory] = useState(false);
   const [historySaved, setHistorySaved] = useState(false);
   const [refSaved, setRefSaved] = useState(false);
+  const [skipProfile, setSkipProfile] = useState(false);
 
   const ESTIMATE_S: Record<FormatId, number> = { image: 35, landing: 50, app: 50 };
   const estimate = ESTIMATE_S[format] ?? 40;
@@ -82,9 +83,6 @@ export default function GeneratePage() {
   const overrun = elapsed > estimate;
 
   if (loading) return null;
-
-  // Local state controls whether the user chose "Design anyway"
-  const [skipProfile, setSkipProfile] = useState(false);
 
   if (!profile && !skipProfile) {
     return (
