@@ -122,7 +122,7 @@ export default function Auth() {
       <div className="w-full max-w-sm">
         <div className="mb-12 text-center">
           <div className="font-serif text-3xl text-ink mb-2">My Muse</div>
-          <p className="text-sm text-muted-foreground">Personal design intelligence.</p>
+          <p className="text-sm text-muted-foreground">Design intelligence.</p>
         </div>
 
         <Button
@@ -172,7 +172,7 @@ export default function Auth() {
             />
           </div>
 
-          <Button type="submit" disabled={busy} className="w-full h-11">
+          <Button type="submit" disabled={busy} className="w-full h-12">
             {busy ? "…" : mode === "signin" ? "Sign in" : "Create account"}
           </Button>
         </form>
@@ -182,7 +182,7 @@ export default function Auth() {
           onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
           className="mt-8 w-full text-center text-sm text-muted-foreground hover:text-ink transition"
         >
-          {mode === "signin" ? "No account yet? Create one." : "Already have an account? Sign in."}
+          {mode === "signin" ? "New here? Create account." : "Have an account? Sign in."}
         </button>
       </div>
     </div>
