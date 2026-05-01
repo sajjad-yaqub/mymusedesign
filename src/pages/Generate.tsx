@@ -83,41 +83,10 @@ export default function GeneratePage() {
 
   if (loading) return null;
 
-  // No profile — front-and-center choice (shown every session until profile exists)
-  const NoProfileGate = (
-    <div className="px-5 md:px-12 py-12 md:py-20 max-w-2xl mx-auto">
-      <div className="text-eyebrow mb-3">Generate</div>
-      <h1 className="font-serif text-4xl md:text-5xl text-ink mb-3 leading-tight">Start here.</h1>
-      <p className="text-ink-faint text-[15px] leading-relaxed mb-10">
-        Two ways in. Pick one.
-      </p>
-      <div className="grid sm:grid-cols-2 gap-4">
-        <Link
-          to="/taste"
-          className="block rounded-md border border-border hover:border-ink/50 p-6 transition group"
-        >
-          <div className="font-serif text-2xl text-ink mb-2 leading-tight">Design with your taste</div>
-          <p className="text-sm text-ink-faint leading-relaxed">Build your profile first. Sharper output.</p>
-          <div className="text-xs text-ink mt-4 group-hover:underline">Build profile →</div>
-        </Link>
-        <button
-          onClick={() => { /* allow generating without profile */ }}
-          className="block text-left rounded-md border border-border hover:border-ink/50 p-6 transition group"
-          // We'll just show the form below by routing past this gate via state.
-        >
-          <div className="font-serif text-2xl text-ink mb-2 leading-tight">Design anyway</div>
-          <p className="text-sm text-ink-faint leading-relaxed">Skip the profile. Generate now.</p>
-          <div className="text-xs text-ink mt-4 group-hover:underline">Skip →</div>
-        </button>
-      </div>
-    </div>
-  );
-
   // Local state controls whether the user chose "Design anyway"
   const [skipProfile, setSkipProfile] = useState(false);
 
   if (!profile && !skipProfile) {
-    // Render a slightly different version of the gate that wires up the skip button
     return (
       <div className="px-5 md:px-12 py-12 md:py-20 max-w-2xl mx-auto">
         <div className="text-eyebrow mb-3">Generate</div>
