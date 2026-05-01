@@ -1,4 +1,5 @@
 // Generate work informed by the designer's taste profile.
+// All three formats (landing, app, image) output a rendered IMAGE.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -8,11 +9,13 @@ const corsHeaders = {
 
 const DIMENSION_TO_ASPECT: Record<string, string> = {
   "1024x1024": "square (1:1)",
-  "1536x1024": "landscape (3:2)",
-  "1024x1536": "portrait (2:3)",
-  "1792x1024": "wide landscape (16:9)",
-  "1024x1792": "tall portrait (9:16)",
+  "1024x1280": "portrait (4:5)",
+  "1024x1820": "vertical story (9:16)",
+  "1820x1024": "wide landscape (16:9)",
 };
+
+// Detect Devanagari (Hindi) presence in the brief
+const hasHindi = (s: string) => /[\u0900-\u097F]/.test(s ?? "");
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -39,22 +42,22 @@ Deno.serve(async (req) => {
 
     const {
       brief,
-      format,
-      profile,
-      selectedRefs,
+      format,                // "landing" | "app" | "image"
+      profile,               // { summary, values, avoid }
+      allReferences,         // array of { label, commentary } — ALL refs, auto-pulled
       link,
-      inspirationImages, // array of data URLs (ad-hoc, not saved)
-      imageDimensions,   // e.g. "1024x1024"
+      inspirationImages,     // data URLs
+      imageDimensions,       // only for "image" format
     } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const refsBlock = (selectedRefs || []).map((r: any, i: number) =>
+    const refsBlock = (allReferences || []).map((r: any, i: number) =>
       `Ref ${i + 1} [${r.label}]${r.commentary ? `: "${r.commentary}"` : ""}`
-    ).join("\n") || "(none selected from saved references)";
+    ).join("\n") || "(no saved references)";
 
-    // ===== Scrape the related link for vibe / palette / logo =====
+    // ===== Scrape link for vibe / palette / logo =====
     let linkContext = "";
     if (link) {
       try {
@@ -74,16 +77,11 @@ Deno.serve(async (req) => {
         const themeColor = pick(/<meta[^>]+name=["']theme-color["'][^>]+content=["']([^"']+)["']/i);
         const favicon = pick(/<link[^>]+rel=["'](?:icon|shortcut icon|apple-touch-icon)["'][^>]+href=["']([^"']+)["']/i);
 
-        // Collect hex colors from inline styles / style tags
         const hexColors = Array.from(html.matchAll(/#([0-9a-fA-F]{6})\b/g)).map((m) => `#${m[1].toLowerCase()}`);
         const colorCounts: Record<string, number> = {};
         for (const c of hexColors) colorCounts[c] = (colorCounts[c] || 0) + 1;
-        const topColors = Object.entries(colorCounts)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 6)
-          .map(([c]) => c);
+        const topColors = Object.entries(colorCounts).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([c]) => c);
 
-        // Visible text (rough)
         const text = html
           .replace(/<script[\s\S]*?<\/script>/gi, " ")
           .replace(/<style[\s\S]*?<\/style>/gi, " ")
@@ -102,218 +100,143 @@ Deno.serve(async (req) => {
 
         linkContext = `
 RELATED LINK: ${link}
-- Site title: ${title || "(unknown)"}
+- Title: ${title || "(unknown)"}
 - Description: ${desc || "(none)"}
-- Logo / favicon: ${absolutize(favicon) || "(none found)"}
+- Logo: ${absolutize(favicon) || "(none)"}
 - OG image: ${absolutize(ogImage) || "(none)"}
 - Theme color: ${themeColor || "(none)"}
-- Most-used hex colors on page: ${topColors.join(", ") || "(none detected)"}
-- Visible copy excerpt: "${text}"
+- Top hex colors: ${topColors.join(", ") || "(none)"}
+- Copy excerpt: "${text}"
 
-When generating, mirror this brand's vibe — reuse the palette above, echo the tone of the copy, and if rendering an HTML mockup you MAY embed the logo/og-image directly via their absolute URLs.`;
+Mirror this brand's vibe — palette, tone, logo. If embedding a logo in the design, use the absolute URL above.`;
       } catch (e) {
         console.warn("link scrape failed:", e);
-        linkContext = `\nRELATED LINK (couldn't fetch, use the URL as a hint): ${link}`;
+        linkContext = `\nRELATED LINK (couldn't fetch, treat URL as a hint): ${link}`;
       }
     }
-    const linkBlock = linkContext;
+
     const inspirationCount = Array.isArray(inspirationImages) ? inspirationImages.length : 0;
     const inspirationBlock = inspirationCount > 0
-      ? `\nThe designer also attached ${inspirationCount} ad-hoc inspiration image(s) for THIS piece only. Treat them as direct visual cues.`
+      ? `\n${inspirationCount} inspiration image(s) attached for THIS piece. Treat as direct visual cues.`
       : "";
 
-    // ===== IMAGE FORMAT: two-step (rationale + prompt → image) =====
-    if (format === "image") {
-      const aspect = DIMENSION_TO_ASPECT[imageDimensions] ?? "square (1:1)";
+    // Hindi flag
+    const hindiInBrief = hasHindi(brief);
+    const langInstruction = hindiInBrief
+      ? `\n\nLANGUAGE: The brief contains Hindi (Devanagari). Any text rendered in the image MUST use correct Hindi grammar, spelling, and Devanagari script. Mix English only if the brief mixes them. Render Devanagari letters precisely — no garbled glyphs.`
+      : `\n\nLANGUAGE: Use clean, grammatically correct English for any text rendered in the image. Short, skim-readable copy.`;
 
-      // Step 1: build the image prompt using vision input from inspirations
-      const planUserContent: any[] = [
-        { type: "text", text: `BRIEF: ${brief}${linkBlock}\n\nTarget aspect: ${aspect}.` },
-      ];
-      if (Array.isArray(inspirationImages)) {
-        for (const url of inspirationImages) {
-          planUserContent.push({ type: "image_url", image_url: { url } });
-        }
-      }
+    // ===== Step 1: build image prompt =====
+    const aspect = format === "image"
+      ? (DIMENSION_TO_ASPECT[imageDimensions] ?? "square (1:1)")
+      : format === "landing"
+      ? "wide landscape (16:9)"
+      : "portrait (9:19.5) — mobile app screen";
 
-      const planRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          messages: [
-            {
-              role: "system",
-              content: `You are a senior designer making work for another designer. Their taste profile:
-Summary: ${profile.summary}
-Values: ${(profile.values || []).join(", ")}
-Avoids: ${(profile.avoid || []).join(", ")}
-
-Saved references they chose:
-${refsBlock}${inspirationBlock}
-
-Write a vivid image-generation prompt (one paragraph, 80-150 words) that reflects their taste exactly. Be visually specific: composition, palette, type, mood, materials. Mention the target aspect ratio.`,
-            },
-            { role: "user", content: planUserContent },
-          ],
-          tools: [{
-            type: "function",
-            function: {
-              name: "deliver_image_plan",
-              description: "Return the image prompt and a short rationale.",
-              parameters: {
-                type: "object",
-                properties: {
-                  image_prompt: { type: "string" },
-                  rationale: { type: "string", description: "2-4 sentences in the designer's voice." },
-                },
-                required: ["image_prompt", "rationale"],
-                additionalProperties: false,
-              },
-            },
-          }],
-          tool_choice: { type: "function", function: { name: "deliver_image_plan" } },
-        }),
-      });
-
-      if (planRes.status === 429 || planRes.status === 402) {
-        return new Response(JSON.stringify({ error: planRes.status === 429 ? "Rate limit reached." : "AI credits exhausted." }), {
-          status: planRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (!planRes.ok) {
-        console.error("plan error:", planRes.status, await planRes.text());
-        throw new Error("AI gateway error (plan)");
-      }
-      const planData = await planRes.json();
-      const planCall = planData.choices?.[0]?.message?.tool_calls?.[0];
-      if (!planCall) throw new Error("No image plan returned");
-      const { image_prompt, rationale } = JSON.parse(planCall.function.arguments);
-
-      // Step 2: generate the image (include inspiration images so the model can riff visually)
-      const imgUserContent: any[] = [
-        { type: "text", text: `${image_prompt}\n\nAspect ratio: ${aspect}.` },
-      ];
-      if (Array.isArray(inspirationImages)) {
-        for (const url of inspirationImages) {
-          imgUserContent.push({ type: "image_url", image_url: { url } });
-        }
-      }
-
-      const imgRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash-image",
-          messages: [{ role: "user", content: imgUserContent }],
-          modalities: ["image", "text"],
-        }),
-      });
-
-      if (imgRes.status === 429 || imgRes.status === 402) {
-        return new Response(JSON.stringify({ error: imgRes.status === 429 ? "Rate limit reached." : "AI credits exhausted." }), {
-          status: imgRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (!imgRes.ok) {
-        console.error("image error:", imgRes.status, await imgRes.text());
-        throw new Error("AI gateway error (image)");
-      }
-      const imgData = await imgRes.json();
-      const imageUrl = imgData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-      if (!imageUrl) throw new Error("Model did not return an image");
-
-      return new Response(JSON.stringify({ result: imageUrl, rationale, image_prompt }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // ===== TEXT FORMATS =====
-    const formatInstructions: Record<string, string> = {
-      "html": `Produce a single self-contained HTML file (with inline <style>) for a clean, well-considered mockup. Use system fonts.
-
-CRITICAL — IMAGES: Never use grey boxes, solid color blocks, "image placeholder" text, or empty <div>s where an image belongs. Every image slot MUST contain a real, working image with a real https URL in src. Use ONLY these sources (no API key, no redirects, all reliable):
-  • Picsum (random photo, ALWAYS works): https://picsum.photos/seed/{any-unique-word}/{w}/{h}  — use a different seed per image (seed=hero-1, seed=feature-2, etc.)
-  • Loremflickr (keyword photo): https://loremflickr.com/{w}/{h}/{keyword,keyword2}?lock={n}  — pick keywords matching the brief
-  • Pravatar (avatars/people): https://i.pravatar.cc/{size}?img={1-70}
-  • If the RELATED LINK context above gave you a logo/favicon/og:image absolute URL, embed THAT directly (e.g. as the brand logo in the header) — it makes the mockup feel real.
-
-Do NOT use source.unsplash.com — it is deprecated and returns nothing. Always set width, height, loading="lazy", and descriptive alt text on every <img>. Add onerror="this.style.display='none'" as a safety net. For decorative backgrounds you may use inline SVG or CSS gradients — but never a flat grey rectangle standing in for content.
-
-Return ONLY the HTML, starting with <!DOCTYPE html>. No markdown fences, no commentary.`,
-      "image_prompt": "Produce a single, vivid image-generation prompt (one paragraph, ~80-150 words) that another model could use to render the work. Be visually specific.",
-      "brief": "Produce a creative brief (250-400 words) with sections: Concept, Direction, Tone, Key choices, Things to avoid.",
+    const formatGuide: Record<string, string> = {
+      landing: `Render a polished LANDING PAGE design as a single image — hero section visible at top with headline, subhead, primary CTA, and a representative visual; followed by one or two supporting sections (features / social proof). Treat it like a high-fidelity Figma mockup screenshot. Real, readable typography. Real product-like visuals.`,
+      app: `Render a polished MOBILE APP UI screen as a single image — phone-frame optional, but the screen content (status bar, header, primary content, bottom nav if relevant) should look production-ready. Real readable typography, real iconography, real micro-copy.`,
+      image: `Render a single visual artwork (poster / illustration / composition / photo-style image) — whatever best fits the brief. No UI chrome unless asked.`,
     };
 
-    const system = `You are a senior designer making work for another designer whose taste profile is below. Match their values exactly. Avoid what they avoid. Their voice matters more than convention.
-
-TASTE PROFILE
-Summary: ${profile.summary}
-Values: ${(profile.values || []).join(", ")}
-Avoids: ${(profile.avoid || []).join(", ")}
-
-SAVED REFERENCES THEY CHOSE FOR THIS PIECE:
-${refsBlock}${linkBlock}${inspirationBlock}
-
-OUTPUT FORMAT INSTRUCTIONS:
-${formatInstructions[format] || formatInstructions["brief"]}`;
-
-    // Build user content with inspiration images for vision
-    const userContent: any[] = [
-      { type: "text", text: `BRIEF: ${brief}\n\nGenerate the output now.` },
-    ];
-    if (Array.isArray(inspirationImages)) {
-      for (const url of inspirationImages) {
-        userContent.push({ type: "image_url", image_url: { url } });
-      }
-    }
-
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const planRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
+        model: "google/gemini-2.5-flash",
         messages: [
-          { role: "system", content: system },
-          { role: "user", content: userContent },
+          {
+            role: "system",
+            content: `You are a senior designer shaping a vivid image-generation prompt for another designer.
+
+THEIR TASTE
+Summary: ${profile?.summary ?? "(none)"}
+Values: ${(profile?.values || []).join(", ") || "(none)"}
+Avoids: ${(profile?.avoid || []).join(", ") || "(none)"}
+
+THEIR REFERENCES (full library — pull from these silently)
+${refsBlock}${linkContext}${inspirationBlock}
+
+OUTPUT TYPE: ${format}
+${formatGuide[format] || formatGuide.image}
+Target aspect: ${aspect}.${langInstruction}
+
+Write ONE vivid image-generation prompt (90–160 words). Be specific: composition, palette (hex if from link), typography, real copy strings to render, mood, materials. If type is "landing" or "app", spell out exact text content for headline, CTA, labels — short and skim-readable.`,
+          },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: `BRIEF: ${brief}\n\nWrite the image prompt now.` },
+              ...(Array.isArray(inspirationImages) ? inspirationImages.map((url: string) => ({ type: "image_url", image_url: { url } })) : []),
+            ],
+          },
         ],
         tools: [{
           type: "function",
           function: {
-            name: "deliver_work",
-            description: "Return the generated output and a short rationale.",
+            name: "deliver_image_plan",
+            description: "Return the image prompt and a short rationale.",
             parameters: {
               type: "object",
               properties: {
-                result: { type: "string", description: "The generated work in the requested format." },
-                rationale: { type: "string", description: "2-4 sentences. Speak as the designer: 'I leaned into X because you value Y. I avoided Z.'" },
+                image_prompt: { type: "string" },
+                rationale: { type: "string", description: "2–3 short lines in the designer's voice." },
               },
-              required: ["result", "rationale"],
+              required: ["image_prompt", "rationale"],
               additionalProperties: false,
             },
           },
         }],
-        tool_choice: { type: "function", function: { name: "deliver_work" } },
+        tool_choice: { type: "function", function: { name: "deliver_image_plan" } },
       }),
     });
 
-    if (response.status === 429 || response.status === 402) {
-      return new Response(JSON.stringify({ error: response.status === 429 ? "Rate limit reached." : "AI credits exhausted." }), {
-        status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    if (planRes.status === 429 || planRes.status === 402) {
+      return new Response(JSON.stringify({ error: planRes.status === 429 ? "Rate limit reached." : "AI credits exhausted." }), {
+        status: planRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (!response.ok) {
-      const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
-      throw new Error("AI gateway error");
+    if (!planRes.ok) {
+      console.error("plan error:", planRes.status, await planRes.text());
+      throw new Error("AI gateway error (plan)");
+    }
+    const planData = await planRes.json();
+    const planCall = planData.choices?.[0]?.message?.tool_calls?.[0];
+    if (!planCall) throw new Error("No image plan returned");
+    const { image_prompt, rationale } = JSON.parse(planCall.function.arguments);
+
+    // ===== Step 2: render image =====
+    const imgUserContent: any[] = [
+      { type: "text", text: `${image_prompt}\n\nAspect ratio: ${aspect}.${hindiInBrief ? " Render Hindi text in correct Devanagari script with proper grammar." : ""}` },
+    ];
+    if (Array.isArray(inspirationImages)) {
+      for (const url of inspirationImages) imgUserContent.push({ type: "image_url", image_url: { url } });
     }
 
-    const data = await response.json();
-    const call = data.choices?.[0]?.message?.tool_calls?.[0];
-    if (!call) throw new Error("Model did not return a tool call");
-    const args = JSON.parse(call.function.arguments);
+    const imgRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-image",
+        messages: [{ role: "user", content: imgUserContent }],
+        modalities: ["image", "text"],
+      }),
+    });
 
-    return new Response(JSON.stringify(args), {
+    if (imgRes.status === 429 || imgRes.status === 402) {
+      return new Response(JSON.stringify({ error: imgRes.status === 429 ? "Rate limit reached." : "AI credits exhausted." }), {
+        status: imgRes.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (!imgRes.ok) {
+      console.error("image error:", imgRes.status, await imgRes.text());
+      throw new Error("AI gateway error (image)");
+    }
+    const imgData = await imgRes.json();
+    const imageUrl = imgData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    if (!imageUrl) throw new Error("Model did not return an image");
+
+    return new Response(JSON.stringify({ result: imageUrl, rationale, image_prompt }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
