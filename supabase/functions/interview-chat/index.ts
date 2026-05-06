@@ -31,7 +31,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { messages, exchangeCount } = await req.json() as { messages: Msg[]; exchangeCount: number };
+    const { messages, exchangeCount, refs, currentIndex } = await req.json() as {
+      messages: Msg[];
+      exchangeCount: number;
+      refs?: { index: number; label: string }[];
+      currentIndex?: number;
+    };
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
@@ -48,10 +53,20 @@ Voice rules:
 - Don't summarize back to them mid-interview. Just dig deeper.
 - Never use bullet points or markdown headings during the interview.
 
-When you're ready to stop, respond with EXACTLY this JSON on its own line and nothing else:
-{"done": true, "message": "I think I'm starting to understand how you see design. Let me summarize what I've learned."}
+You ALWAYS respond with a single JSON object on one line and nothing else.
 
-Otherwise respond with plain text — your next conversational reply or follow-up question.
+Schema for a normal turn:
+{"message": "your next short question", "imageIndex": <number>}
+
+- "imageIndex" is the index (0-based) of the image your NEXT question is about.
+- If your question is a follow-up probing the user's PREVIOUS answer, KEEP imageIndex the same as the current image (${currentIndex ?? 0}). Do not jump to a new image just because the user replied.
+- Only move to a new image when you've finished probing the current one. Pick from available indices.
+
+Available images (index — label): ${(refs ?? []).map(r => `${r.index}—${r.label}`).join(", ")}
+Current image index: ${currentIndex ?? 0}
+
+When you're ready to stop, respond with EXACTLY:
+{"done": true, "message": "I think I'm starting to understand how you see design. Let me summarize what I've learned."}
 
 Current exchange count: ${exchangeCount}. Lean toward stopping if you're past 6 and values are repeating.`;
 
@@ -86,21 +101,29 @@ Current exchange count: ${exchangeCount}. Lean toward stopping if you're past 6 
     const data = await response.json();
     const raw = data.choices?.[0]?.message?.content ?? "";
 
-    // Try to detect done JSON
+    // Parse JSON response
     let done = false;
     let message = raw.trim();
-    const trimmed = raw.trim();
-    if (trimmed.startsWith("{") && trimmed.includes('"done"')) {
+    let imageIndex: number | undefined = undefined;
+    let trimmed = raw.trim();
+    // Strip code fences if present
+    if (trimmed.startsWith("```")) {
+      trimmed = trimmed.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+    }
+    if (trimmed.startsWith("{")) {
       try {
         const parsed = JSON.parse(trimmed);
         if (parsed.done) {
           done = true;
           message = parsed.message ?? "I think I'm starting to understand how you see design.";
+        } else if (typeof parsed.message === "string") {
+          message = parsed.message;
+          if (typeof parsed.imageIndex === "number") imageIndex = parsed.imageIndex;
         }
-      } catch { /* fall through */ }
+      } catch { /* keep raw */ }
     }
 
-    return new Response(JSON.stringify({ message, done }), {
+    return new Response(JSON.stringify({ message, done, imageIndex }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
