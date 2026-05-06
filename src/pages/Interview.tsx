@@ -109,16 +109,15 @@ export default function TastePage() {
     setThinking(true);
 
     try {
-      const nextIdx = Math.min(currentIdx + 1, refs.length - 1);
-      const nextRef = refs[nextIdx];
       const contextMessages = newMsgs.map((m) => ({ role: m.role, content: m.content }));
-      contextMessages.push({
-        role: "user",
-        content: `(Context: next image is labeled "${nextRef.label}".)`,
-      });
 
       const { data, error } = await supabase.functions.invoke("interview-chat", {
-        body: { messages: contextMessages, exchangeCount: exchangeCount + 1 },
+        body: {
+          messages: contextMessages,
+          exchangeCount: exchangeCount + 1,
+          refs: refs.map((r, i) => ({ index: i, label: r.label })),
+          currentIndex: currentIdx,
+        },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -127,8 +126,11 @@ export default function TastePage() {
         setMessages((prev) => [...prev, { role: "assistant", content: data.message }]);
         setInterviewDone(true);
       } else {
-        setCurrentIdx(nextIdx);
-        setMessages((prev) => [...prev, { role: "assistant", content: data.message, refId: nextRef.id }]);
+        const idx = typeof data.imageIndex === "number" && data.imageIndex >= 0 && data.imageIndex < refs.length
+          ? data.imageIndex
+          : currentIdx;
+        setCurrentIdx(idx);
+        setMessages((prev) => [...prev, { role: "assistant", content: data.message, refId: refs[idx].id }]);
       }
     } catch (e: any) {
       toast.error(e.message ?? "Chat error");
