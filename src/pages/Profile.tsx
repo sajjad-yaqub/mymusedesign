@@ -59,7 +59,7 @@ export default function ProfilePage() {
   const groups: { label: LabelKind }[] = [{ label: "best" }, { label: "good" }, { label: "bad" }];
 
   return (
-    <div className="px-5 md:px-12 py-10 md:py-16 max-w-3xl mx-auto md:mx-0">
+    <div className="px-5 md:px-12 py-10 md:py-16 w-full">
       <div className="flex items-baseline justify-between mb-10 md:mb-12 gap-4">
         <div>
           <div className="text-eyebrow mb-3">Profile</div>
