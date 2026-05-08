@@ -121,8 +121,8 @@ export default function Auth() {
     <div className="min-h-screen flex items-center justify-center px-6 bg-background">
       <div className="w-full max-w-sm">
         <div className="mb-12 text-center">
-          <div className="font-serif text-3xl text-ink mb-2">My Muse</div>
-          <p className="text-sm text-muted-foreground">Design intelligence.</p>
+          <div className="font-serif text-3xl text-ink mb-2">My Muse Design</div>
+          <p className="text-sm text-muted-foreground">Taste Matters.</p>
         </div>
 
         <Button

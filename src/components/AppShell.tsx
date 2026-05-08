@@ -26,9 +26,9 @@ export default function AppShell() {
       {/* Sidebar — desktop */}
       <aside className="hidden md:flex w-60 shrink-0 border-r border-border flex-col">
         <div className="px-7 pt-8 pb-12">
-          <div className="font-serif text-xl text-ink leading-none">My Muse</div>
+          <div className="font-serif text-xl text-ink leading-none">My Muse Design</div>
           <div className="text-[11px] tracking-[0.18em] uppercase text-ink-faint mt-2">
-            Design intelligence
+            Taste Matters
           </div>
         </div>
 
@@ -66,7 +66,7 @@ export default function AppShell() {
 
       {/* Top bar — mobile */}
       <header className="md:hidden flex items-center justify-between px-5 h-14 border-b border-border">
-        <div className="font-serif text-lg text-ink">My Muse</div>
+        <div className="font-serif text-lg text-ink">My Muse Design</div>
         <button
           onClick={async () => {
             await supabase.auth.signOut();
