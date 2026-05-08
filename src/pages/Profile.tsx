@@ -106,10 +106,10 @@ export default function ProfilePage() {
               return (
                 <div key={label}>
                   <div className="mb-3"><LabelChip kind={label} active /></div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div className="flex flex-wrap gap-3">
                     {items.map((r) => (
-                      <div key={r.id} className="aspect-[4/3] bg-secondary/40 rounded overflow-hidden border border-border">
-                        {urls[r.id] && <img src={urls[r.id]} alt="" className="w-full h-full object-cover" />}
+                      <div key={r.id} className="h-32 md:h-36 bg-secondary/40 rounded overflow-hidden border border-border shrink-0">
+                        {urls[r.id] && <img src={urls[r.id]} alt="" className="h-full w-auto object-cover" />}
                       </div>
                     ))}
                   </div>
