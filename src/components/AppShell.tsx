@@ -91,8 +91,8 @@ export default function AppShell() {
         </div>
       </aside>
 
-      {/* Top bar — mobile */}
-      <header className="md:hidden flex items-center justify-between px-5 h-14 border-b border-border">
+      {/* Top bar — mobile (sticky) */}
+      <header className="md:hidden sticky top-0 z-40 flex items-center justify-between px-5 h-14 border-b border-border bg-background/95 backdrop-blur">
         <div className="font-serif text-lg text-ink">My Muse Design</div>
         <button
           onClick={async () => {
