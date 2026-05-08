@@ -235,7 +235,7 @@ export default function GeneratePage() {
   };
 
   return (
-    <div className="px-5 md:px-12 py-10 md:py-16 max-w-3xl mx-auto md:mx-0">
+    <div className="px-5 md:px-12 py-10 md:py-16 max-w-3xl mx-auto md:mx-0 pb-32 md:pb-16">
       <div className="text-eyebrow mb-3">Generate</div>
       <h1 className="font-serif text-4xl md:text-5xl text-ink mb-8 md:mb-12 leading-tight">Make something.</h1>
 
@@ -359,7 +359,7 @@ export default function GeneratePage() {
           </div>
         )}
 
-        <div className="pt-2">
+        <div className="pt-2 hidden md:block">
           <Button onClick={generate} disabled={busy} className="w-full sm:w-auto h-12 px-8">
             {busy ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating…</> : "Generate"}
           </Button>
@@ -368,6 +368,13 @@ export default function GeneratePage() {
               No profile. <Link to="/taste" className="underline text-ink">Build one</Link> for sharper output.
             </p>
           )}
+        </div>
+
+        {/* Mobile fixed Generate button (sits above bottom nav) */}
+        <div className="md:hidden fixed left-0 right-0 bottom-[56px] z-30 px-5 py-3 border-t border-border bg-background/95 backdrop-blur">
+          <Button onClick={generate} disabled={busy} className="w-full h-12">
+            {busy ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating…</> : "Generate"}
+          </Button>
         </div>
 
         {busy && (
