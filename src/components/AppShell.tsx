@@ -23,7 +23,7 @@ export default function AppShell() {
   if (loading || !user) return null;
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-background text-foreground">
+    <div className="h-screen flex flex-col md:flex-row bg-background text-foreground overflow-hidden">
       {/* Sidebar — desktop */}
       <aside
         className={`hidden md:flex shrink-0 border-r border-border flex-col h-screen sticky top-0 transition-[width] duration-200 ${
